@@ -3,9 +3,6 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 
-// Simple in-memory session store (for production, use connect-pg-simple with PostgreSQL)
-const sessions = new Map<string, { username: string; expiresAt: number }>();
-
 // Rate limiting configuration
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MINUTES = 15;
@@ -15,27 +12,27 @@ export function generateSessionId(): string {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
 
-export function createSession(username: string): string {
+export async function createSession(username: string): Promise<string> {
   const sessionId = generateSessionId();
-  const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-  sessions.set(sessionId, { username, expiresAt });
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  await storage.createSession({ id: sessionId, username, expiresAt });
   return sessionId;
 }
 
-export function validateSession(sessionId: string): string | null {
-  const session = sessions.get(sessionId);
+export async function validateSession(sessionId: string): Promise<string | null> {
+  const session = await storage.getSession(sessionId);
   if (!session) return null;
   
-  if (Date.now() > session.expiresAt) {
-    sessions.delete(sessionId);
+  if (new Date() > session.expiresAt) {
+    await storage.deleteSession(sessionId);
     return null;
   }
   
   return session.username;
 }
 
-export function deleteSession(sessionId: string): void {
-  sessions.delete(sessionId);
+export async function deleteSession(sessionId: string): Promise<void> {
+  await storage.deleteSession(sessionId);
 }
 
 export async function isRateLimited(username: string): Promise<boolean> {
@@ -103,14 +100,14 @@ export async function validateCredentials(
   return { valid: false, message: "Invalid credentials" };
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const sessionId = req.headers.authorization?.replace("Bearer ", "");
   
   if (!sessionId) {
     return res.status(401).json({ message: "Authentication required" });
   }
   
-  const username = validateSession(sessionId);
+  const username = await validateSession(sessionId);
   if (!username) {
     return res.status(401).json({ message: "Invalid or expired session" });
   }

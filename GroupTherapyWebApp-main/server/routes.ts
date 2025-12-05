@@ -33,7 +33,7 @@ export async function registerRoutes(
         return res.status(401).json({ message: result.message || "Invalid credentials" });
       }
 
-      const sessionId = createSession(username);
+      const sessionId = await createSession(username);
       res.json({ sessionId, username });
     } catch (error: any) {
       console.error("Login error:", error);
@@ -41,10 +41,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/auth/logout", (req, res) => {
+  app.post("/api/auth/logout", async (req, res) => {
     const sessionId = req.headers.authorization?.replace("Bearer ", "");
     if (sessionId) {
-      deleteSession(sessionId);
+      await deleteSession(sessionId);
     }
     res.json({ message: "Logged out successfully" });
   });
@@ -55,7 +55,7 @@ export async function registerRoutes(
       return res.status(401).json({ message: "Not authenticated" });
     }
 
-    const username = validateSession(sessionId);
+    const username = await validateSession(sessionId);
     if (!username) {
       return res.status(401).json({ message: "Invalid session" });
     }
@@ -64,22 +64,25 @@ export async function registerRoutes(
   });
   // Radio metadata endpoint
   app.get("/api/radio/metadata", async (req, res) => {
-    // In production, this would fetch from your streaming service API
-    // For now, return demo data with simulated updates
-    const demoTracks = [
-      { title: "Midnight Drive", artist: "Luna Wave", showName: "Morning Therapy", hostName: "DJ Luna" },
-      { title: "Electric Dreams", artist: "Neon Pulse", showName: "Peak Time Sessions", hostName: "Neon Pulse" },
-      { title: "Deep Waters", artist: "Aqua Dreams", showName: "Weekend Warm-Up", hostName: "Aqua Dreams" },
-    ];
-
-    const randomTrack = demoTracks[Math.floor(Math.random() * demoTracks.length)];
-    const listenerCount = Math.floor(Math.random() * 50) + 100; // 100-150 listeners
-
-    res.json({
-      ...randomTrack,
-      listenerCount,
-      coverUrl: undefined,
-    });
+    try {
+      let settings = await storage.getRadioSettings();
+      if (!settings) {
+        settings = await storage.initRadioSettings();
+      }
+      res.json({
+        title: settings.currentTrack || "GroupTherapy Radio",
+        artist: settings.currentArtist || "Various Artists",
+        showName: settings.currentShowName || "Live Radio",
+        hostName: settings.currentHostName || "GroupTherapy",
+        coverUrl: settings.currentCoverUrl,
+        listenerCount: settings.listenerCount || 0,
+        isLive: settings.isLive || false,
+        streamUrl: settings.streamUrl,
+      });
+    } catch (error: any) {
+      console.error("Error fetching radio metadata:", error);
+      res.status(500).json({ message: error.message });
+    }
   });
 
   // Sitemap
@@ -97,35 +100,35 @@ export async function registerRoutes(
   // Analytics endpoints
   app.get("/api/analytics/overview", requireAuth, async (req, res) => {
     try {
+      const analytics = await storage.getAnalyticsOverview();
       const releases = await storage.getAllReleases();
       const radioShows = await storage.getAllRadioShows();
 
-      // Calculate total streams (simulated data based on releases)
-      const totalStreams = releases.length * 9750;
-      const totalListeners = releases.length * 375;
-      const activeUsers = Math.floor(totalListeners * 0.27);
-
-      // Get top releases by simulated streams
+      // Get top releases with play counts
       const topReleases = releases
         .filter(r => r.published)
         .slice(0, 5)
-        .map((release, index) => ({
-          id: release.id,
-          title: release.title,
-          streams: Math.floor(45000 - (index * 7000) + Math.random() * 5000),
-        }));
+        .map((release) => {
+          const playData = analytics.topReleasesByPlays.find(p => p.releaseId === release.id);
+          return {
+            id: release.id,
+            title: release.title,
+            streams: playData?.playCount || 0,
+          };
+        })
+        .sort((a, b) => b.streams - a.streams);
 
       // Get radio show performance
-      const showPerformance = radioShows.slice(0, 4).map((show, index) => ({
+      const showPerformance = radioShows.slice(0, 4).map((show) => ({
         id: show.id,
         title: show.title,
-        avgListeners: Math.floor(1200 - (index * 200) + Math.random() * 300),
+        avgListeners: 0,
       }));
 
       res.json({
-        totalStreams,
-        totalListeners,
-        activeUsers,
+        totalStreams: analytics.totalPlayCounts,
+        totalListeners: analytics.totalRadioListeners,
+        activeUsers: analytics.totalPageViews,
         engagement: {
           releases: topReleases,
           radioShows: showPerformance,

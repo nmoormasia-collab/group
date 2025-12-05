@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { createServer } from "http";
 
@@ -22,6 +23,17 @@ export function createApp() {
   );
 
   app.use(express.urlencoded({ extended: false }));
+
+  app.use(cors({
+    origin: process.env.NODE_ENV === 'production' 
+      ? (process.env.CORS_ORIGIN || true)
+      : true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }));
+
+  app.options('*', cors());
 
   app.use((req, res, next) => {
     const start = Date.now();
