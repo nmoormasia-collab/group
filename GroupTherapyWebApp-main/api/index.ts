@@ -12,13 +12,14 @@ async function getApp() {
     }
     if (!initialized) {
       console.log("Initializing app for serverless...");
-      // Note: Using in-memory storage - data will reset on each deployment
+      
       if (!process.env.DATABASE_URL) {
-        console.warn("DATABASE_URL not set - using in-memory storage (not persistent)");
+        throw new Error("DATABASE_URL environment variable is required");
       }
+      
       await initializeAppForServerless(app);
       initialized = true;
-      console.log("App initialized successfully");
+      console.log("App initialized successfully with database");
     }
     return app;
   } catch (error) {
