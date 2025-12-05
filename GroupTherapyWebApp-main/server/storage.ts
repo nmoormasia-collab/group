@@ -508,3 +508,14 @@ export class MemStorage implements IStorage {
 }
 
 export const storage = new MemStorage();
+
+// Ensure database connection is initialized
+async function ensureStorageInitialized() {
+  try {
+    // Test database connection with a simple query
+    await storage.getAllReleases();
+  } catch (error) {
+    console.error("Database connection failed:", error);
+    throw new Error("Failed to connect to database");
+  }
+}

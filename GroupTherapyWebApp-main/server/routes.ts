@@ -8,6 +8,9 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Initialize storage connection
+  await ensureStorageInitialized();
+  
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {

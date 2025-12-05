@@ -12,6 +12,10 @@ async function getApp() {
     }
     if (!initialized) {
       console.log("Initializing app for serverless...");
+      // Ensure DATABASE_URL is set
+      if (!process.env.DATABASE_URL) {
+        throw new Error("DATABASE_URL environment variable is not set");
+      }
       await initializeAppForServerless(app);
       initialized = true;
       console.log("App initialized successfully");
