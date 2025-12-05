@@ -104,10 +104,9 @@ export async function registerRoutes(
       const releases = await storage.getAllReleases();
       const radioShows = await storage.getAllRadioShows();
 
-      // Get top releases with play counts
+      // Get top releases with play counts - map all releases first, then sort by streams and take top 5
       const topReleases = releases
         .filter(r => r.published)
-        .slice(0, 5)
         .map((release) => {
           const playData = analytics.topReleasesByPlays.find(p => p.releaseId === release.id);
           return {
@@ -116,7 +115,8 @@ export async function registerRoutes(
             streams: playData?.playCount || 0,
           };
         })
-        .sort((a, b) => b.streams - a.streams);
+        .sort((a, b) => b.streams - a.streams)
+        .slice(0, 5);
 
       // Get radio show performance
       const showPerformance = radioShows.slice(0, 4).map((show) => ({
